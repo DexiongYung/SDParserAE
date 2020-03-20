@@ -38,9 +38,9 @@ class NameParser():
         """
         Output for pretrained LSTMS doesn't have SOS so just use PAD for SOS
         """
-        self.guide_fn = TransformerHandler(PRINTABLE, self.output_chars, self.output_chars.index(PAD))
-        self.guide_mn = TransformerHandler(PRINTABLE, self.output_chars, self.output_chars.index(PAD))
-        self.guide_ln = TransformerHandler(PRINTABLE, self.output_chars, self.output_chars.index(PAD))
+        self.guide_fn = AutoEncoderHandler(PRINTABLE, hidden_sz, self.output_chars, out_sos_idx=self.output_chars.index(PAD))
+        self.guide_mn = AutoEncoderHandler(PRINTABLE, hidden_sz, self.output_chars, out_sos_idx=self.output_chars.index(PAD))
+        self.guide_ln = AutoEncoderHandler(PRINTABLE, hidden_sz, self.output_chars, out_sos_idx=self.output_chars.index(PAD))
         # Format classifier neural networks
         self.guide_format = AutoEncoderHandler(PRINTABLE, hidden_sz, FORMAT_CLASS)
         self.guide_noise = AutoEncoderHandler(PRINTABLE, hidden_sz, NOISE_CLASS)
@@ -112,7 +112,7 @@ class NameParser():
             """
             noise_classes = []
             for i in range(MAX_STRING_LEN):
-                noise_class = pyro.sample(f"char_noise_{i}",
+                noise_class = pyro.sample(f"{CHAR_NOISE_PROBS}_{i}",
                                           dist.Categorical(torch.tensor(CHAR_NOISE_PROBS).to(DEVICE))).item()
                 noise_classes.append(noise_class)
 
@@ -178,7 +178,7 @@ class NameParser():
                 curr_format_probs[FORMAT_CLASS.index('PAD')] = self.peak_prob
                 char_format_probs.append(curr_format_probs)
             for i in range(MAX_STRING_LEN):
-                curr_format = pyro.sample(f"char_format_{i}",
+                curr_format = pyro.sample(f"{CHAR_FORMAT_ADD}_{i}",
                                           dist.Categorical(torch.tensor(char_format_probs[i]).to(DEVICE)))
 
             pyro.sample("output", dist.Categorical(torch.tensor(observation_prob[:MAX_STRING_LEN]).to(DEVICE)),
@@ -198,13 +198,13 @@ class NameParser():
         pyro.module("format_encoder_lstm", self.guide_format.encoder.lstm)
         pyro.module("format_decoder_lstm", self.guide_format.decoder.lstm)
         pyro.module("format_decoder_fc1", self.guide_format.decoder.fc1)
-        char_class_samples, _ = self.guide_format.encode_decode(X, "char_format", break_on_eos = False)
+        char_class_samples, _ = self.guide_format.encode_decode(X, CHAR_FORMAT_ADD, break_on_eos = False)
 
         # Infer noise class
         pyro.module("noise_encoder_lstm", self.guide_noise.encoder.lstm)
         pyro.module("noise_decoder_lstm", self.guide_noise.decoder.lstm)
         pyro.module("noise_decoder_fc1", self.guide_noise.decoder.fc1)
-        noise_samples, _ = self.guide_noise.encode_decode(X, "char_noise", break_on_eos = False)
+        noise_samples, _ = self.guide_noise.encode_decode(X, CHAR_NOISE_PROBS, break_on_eos = False)
 
         title, first, middles, last, suffix = parse_name(X, char_class_samples)
         # print(f"GUIDE Parse: {parse_name(X, char_class_samples)}")
@@ -228,27 +228,47 @@ class NameParser():
             suffix = classify_title_or_suffix(self.suffix_rnn, suffix, SUFFIX, "suffix")
 
         if len(first) > 0:
-            pyro.module("fn_transformer", self.guide_fn.transformer.transformer)
-            pyro.module("fn_fc1", self.guide_fn.transformer.fc1)
+            pyro.module("fn_encoder_embed", self.guide_fn.encoder.embed)
+            pyro.module("fn_encoder_lstm", self.guide_fn.encoder.lstm)
+            pyro.module("fn_decoder_embed", self.guide_fn.decoder.embed)
+            pyro.module("fn_decoder_lstm", self.guide_fn.decoder.lstm)
+            pyro.module("fn_decoder_fc1", self.guide_fn.decoder.fc1)
             input = name_to_idx_tensor(first[0], self.guide_fn.input)
-            samples, _ = sample_from_transformer(self.guide_fn, input, FIRST_NAME_ADD, MAX_OUTPUT_LEN)
-            first = ''.join(self.output_chars[s] for s in samples)
+            _, first = self.guide_fn.encode_decode(input, FIRST_NAME_ADD)
+            first = ''.join(c for c in first)
 
         if len(middles) > 0:
             pyro.module("middle_name_format_rnn", self.middle_name_format_rnn.lstm)
             pyro.module("middle_name_format_fc1", self.middle_name_format_rnn.fc1)
             classify_using_transformer(self.middle_name_format_rnn, X, "middle_name_format_id")
 
+            
+            pyro.module("mn_encoder_embed", self.guide_mn.encoder.embed)
+            pyro.module("mn_encoder_lstm", self.guide_mn.encoder.lstm)
+            pyro.module("mn_decoder_embed", self.guide_mn.decoder.embed)
+            pyro.module("mn_decoder_lstm", self.guide_mn.decoder.lstm)
+            pyro.module("mn_decoder_fc1", self.guide_mn.decoder.fc1)
+
+            for i in range(len(middles)):
+                input = name_to_idx_tensor(middles[i], self.guide_mn.input)
+                _, middle = self.guide_mn.encode_decode(input, f"{MIDDLE_NAME_ADD}_{i}")
+                middle = ''.join(c for c in middle)
+                middles.append(middle)
+            
             pyro.module("mn_transformer", self.guide_mn.transformer.transformer)
             pyro.module("mn_fc1", self.guide_mn.transformer.fc1)
             _, middles = denoise_names(self.guide_mn, middles, MIDDLE_NAME_ADD, self.output_chars)
 
         if len(last) > 0:
-            pyro.module("ln_transformer", self.guide_ln.transformer.transformer)
-            pyro.module("ln_fc1", self.guide_ln.transformer.fc1)
+            pyro.module("ln_encoder_embed", self.guide_ln.encoder.embed)
+            pyro.module("ln_encoder_lstm", self.guide_ln.encoder.lstm)
+            pyro.module("ln_decoder_embed", self.guide_ln.decoder.embed)
+            pyro.module("ln_decoder_lstm", self.guide_ln.decoder.lstm)
+            pyro.module("ln_decoder_fc1", self.guide_ln.decoder.fc1)
+
             input = name_to_idx_tensor(last[0], self.guide_ln.input)
-            samples, _ = sample_from_transformer(self.guide_ln, input, LAST_NAME_ADD, MAX_OUTPUT_LEN)
-            last = ''.join(self.output_chars[s] for s in samples)
+            _, last = self.guide_fn.encode_decode(input, LAST_NAME_ADD)
+            last = ''.join(c for c in last)
 
         # TODO!!! Have to add full name reconstruction
 

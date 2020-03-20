@@ -10,6 +10,8 @@ FIRST_NAME_ADD = "first_name"
 MIDDLE_NAME_ADD = "middle_name"
 MIDDLE_INITIAL_ADD = "middle_initial"
 LAST_NAME_ADD = "last_name"
+NOISE_ADD = "char_noise"
+CHAR_FORMAT_ADD = "char_format"
 
 TITLE = ['Mr', 'Mr.', 'Ms', 'Ms.', 'Mrs', 'Mrs.', 'Dr', 'Dr.', 'Sir', "Ma'am", 'Madam']
 SUFFIX = ['Sr', 'Sr.', 'Snr', 'Jr', 'Jr.', 'Jnr']
