@@ -7,7 +7,7 @@ from util.config import load_json
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', help='filepath to config json', type=str, default='config/UNNAMED_SESSION.json')
-parser.add_argument('--name', help='name to parse', nargs='?', default='Jason Yoo', type=str)
+parser.add_argument('--name', help='name to parse', nargs='?', default='Yung, Dylan', type=str)
 parser.add_argument('--true_posterior', help='whether to sample from p(z|x) or q(z|x)', nargs='?', default=False,
                     type=bool)
 parser.add_argument('--num_particles', help='# of particles to use for SIS', nargs='?', default=10, type=int)
