@@ -9,6 +9,7 @@ from AutoEncoderHandler import AutoEncoderHandler
 from TransformerHandler import TransformerHandler
 from const import *
 from model.FormatModel import NameFormatModel
+from model.ChararacterClassifierModel import CharacterClassifierModel
 from util.config import *
 from util.infcomp_utilities import *
 
@@ -42,7 +43,7 @@ class NameParser():
         self.guide_mn = TransformerHandler(PRINTABLE, self.output_chars, self.output_chars.index(PAD))
         self.guide_ln = TransformerHandler(PRINTABLE, self.output_chars, self.output_chars.index(PAD))
         # Format classifier neural networks
-        self.guide_format = AutoEncoderHandler(PRINTABLE, hidden_sz, FORMAT_CLASS)
+        self.guide_format = CharacterClassifierModel(PRINTABLE, hidden_sz, FORMAT_CLASS)
         self.guide_noise = AutoEncoderHandler(PRINTABLE, hidden_sz, NOISE_CLASS)
         # Title / Suffix classifier neural networks
         self.title_rnn = NameFormatModel(input_sz=NUM_PRINTABLE, hidden_sz=hidden_sz, output_sz=len(TITLE))
@@ -195,10 +196,9 @@ class NameParser():
         X_len = len(X)
 
         # Infer formats and parse
-        pyro.module("format_encoder_lstm", self.guide_format.encoder.lstm)
-        pyro.module("format_decoder_lstm", self.guide_format.decoder.lstm)
-        pyro.module("format_decoder_fc1", self.guide_format.decoder.fc1)
-        char_class_samples, _ = self.guide_format.encode_decode(X, "char_format", break_on_eos = False)
+        pyro.module("format_forward_lstm", self.guide_format.forward_lstm)
+        pyro.module("format_backward_lstm", self.guide_format.backward_lstm)
+        char_class_samples = self.guide_format.forward(X, "char_format")
 
         # Infer noise class
         pyro.module("noise_encoder_lstm", self.guide_noise.encoder.lstm)
@@ -291,8 +291,7 @@ class NameParser():
         self.guide_ln.transformer.load_state_dict(name_content['guide_ln'])
         self.title_rnn.load_state_dict(title_suffix_content['title_rnn'])
         self.suffix_rnn.load_state_dict(title_suffix_content['suffix_rnn'])
-        self.guide_format.encoder.load_state_dict(format_content['guide_format_encoder'])
-        self.guide_format.decoder.load_state_dict(format_content['guide_format_decoder'])
+        self.guide_format.encoder.load_state_dict(format_content['guide_format'])
         self.aux_format_rnn.load_state_dict(format_content['aux_format_rnn'])
         self.main_format_rnn.load_state_dict(format_content['main_format_rnn'])
         self.middle_name_format_rnn.load_state_dict(format_content['middle_name_format_rnn'])
@@ -316,8 +315,7 @@ class NameParser():
             'suffix_rnn': self.suffix_rnn.state_dict(),
         }
         format_content = {
-            'guide_format_encoder': self.guide_format.encoder.state_dict(),
-            'guide_format_decoder': self.guide_format.decoder.state_dict(),
+            'guide_format_encoder': self.guide_format.state_dict(),
             'aux_format_rnn': self.aux_format_rnn.state_dict(),
             'main_format_rnn': self.main_format_rnn.state_dict(),
             'middle_name_format_rnn': self.middle_name_format_rnn.state_dict(),
