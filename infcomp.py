@@ -291,7 +291,7 @@ class NameParser():
         self.guide_ln.transformer.load_state_dict(name_content['guide_ln'])
         self.title_rnn.load_state_dict(title_suffix_content['title_rnn'])
         self.suffix_rnn.load_state_dict(title_suffix_content['suffix_rnn'])
-        self.guide_format.load_state_dict(format_content['guide_format_encoder'])
+        self.guide_format.load_state_dict(format_content['guide_format'])
         self.aux_format_rnn.load_state_dict(format_content['aux_format_rnn'])
         self.main_format_rnn.load_state_dict(format_content['main_format_rnn'])
         self.middle_name_format_rnn.load_state_dict(format_content['middle_name_format_rnn'])
@@ -306,7 +306,7 @@ class NameParser():
         if not os.path.exists(folder):
             os.mkdir(folder)
         name_content = {
-            'guide_fn_encoder': self.guide_fn.transformer.state_dict(),
+            'guide_fn': self.guide_fn.transformer.state_dict(),
             'guide_mn': self.guide_mn.transformer.state_dict(),
             'guide_ln': self.guide_ln.transformer.state_dict(),
         }
