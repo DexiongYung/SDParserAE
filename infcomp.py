@@ -254,10 +254,6 @@ class NameParser():
                 _, middle = self.guide_mn.encode_decode(input, f"{MIDDLE_NAME_ADD}_{i}")
                 middle = ''.join(c for c in middle)
                 middles.append(middle)
-            
-            pyro.module("mn_transformer", self.guide_mn.transformer.transformer)
-            pyro.module("mn_fc1", self.guide_mn.transformer.fc1)
-            _, middles = denoise_names(self.guide_mn, middles, MIDDLE_NAME_ADD, self.output_chars)
 
         if len(last) > 0:
             pyro.module("ln_encoder_embed", self.guide_ln.encoder.embed)
